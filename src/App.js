@@ -17,8 +17,22 @@ export default function App() {
     fetch("https://srijandubey.github.io/campus-api-mock/SRM-C1-25.json")
       .then((res) => res.json())
       .then((data) => {
-        setDoctors(data.doctors || []);
-        setFilteredDoctors(data.doctors || []);
+        console.log("API Response:", data);
+        // Ensure we have consistent data structure with default values
+        const doctorsData = (data.doctors || data || []).map(doc => ({
+          ...doc,
+          specialties: doc.specialties || [],
+          experience: doc.experience || 0,
+          fees: doc.fees || 0,
+          videoConsult: doc.videoConsult !== undefined ? doc.videoConsult : true,
+          inClinic: doc.inClinic !== undefined ? doc.inClinic : true,
+          qualification: doc.qualification || "",
+          clinicName: doc.clinicName || "",
+          location: doc.location || ""
+        }));
+        
+        setDoctors(doctorsData);
+        setFilteredDoctors(doctorsData);
       })
       .catch((err) => console.error("Error fetching doctors:", err));
   }, []);
@@ -39,15 +53,17 @@ export default function App() {
     });
     
     setSearchParams(params);
-  }, [filters, searchQuery]);
+  }, [filters, searchQuery, setSearchParams]);
 
   const applyFilters = () => {
+    if (!doctors || doctors.length === 0) return;
+    
     let result = [...doctors];
 
     // Apply search filter
     if (searchQuery) {
       result = result.filter(doctor => 
-        doctor.name.toLowerCase().includes(searchQuery.toLowerCase())
+        doctor.name && doctor.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -63,15 +79,16 @@ export default function App() {
     // Apply specialty filter
     if (filters.specialties.size > 0) {
       result = result.filter(doctor => 
+        doctor.specialties && Array.isArray(doctor.specialties) && 
         doctor.specialties.some(s => filters.specialties.has(s))
       );
     }
 
     // Apply sorting
     if (filters.sort === "fees") {
-      result.sort((a, b) => a.fees - b.fees);
+      result.sort((a, b) => (a.fees || 0) - (b.fees || 0));
     } else if (filters.sort === "experience") {
-      result.sort((a, b) => b.experience - a.experience);
+      result.sort((a, b) => (b.experience || 0) - (a.experience || 0));
     }
 
     setFilteredDoctors(result);
@@ -81,9 +98,9 @@ export default function App() {
     const query = e.target.value;
     setSearchQuery(query);
     
-    if (query.trim()) {
+    if (query.trim() && doctors && doctors.length > 0) {
       const matchedSuggestions = doctors
-        .filter(doc => doc.name.toLowerCase().includes(query.toLowerCase()))
+        .filter(doc => doc.name && doc.name.toLowerCase().includes(query.toLowerCase()))
         .slice(0, 3);
       setSuggestions(matchedSuggestions);
     } else {
@@ -96,12 +113,12 @@ export default function App() {
     setSuggestions([]);
   };
 
-  const handleSpecialtyToggle = (specialty) => {
+  const handleSpecialtyToggle = (specialtyDisplay) => {
     const newSpecialties = new Set(filters.specialties);
-    if (newSpecialties.has(specialty)) {
-      newSpecialties.delete(specialty);
+    if (newSpecialties.has(specialtyDisplay)) {
+      newSpecialties.delete(specialtyDisplay);
     } else {
-      newSpecialties.add(specialty);
+      newSpecialties.add(specialtyDisplay);
     }
     setFilters({ ...filters, specialties: newSpecialties });
   };
@@ -172,7 +189,7 @@ export default function App() {
           </div>
           
           {suggestions.length > 0 && (
-            <div className="absolute z-10 w-full bg-white shadow-lg rounded-b-md mt-1">
+            <div className="absolute z-50 w-full bg-white shadow-lg rounded-b-md mt-1">
               {suggestions.map((doctor, index) => (
                 <div
                   key={index}
@@ -185,7 +202,11 @@ export default function App() {
                   </div>
                   <div className="ml-3">
                     <div className="font-medium">{doctor.name}</div>
-                    <div className="text-gray-500 text-sm">{doctor.specialties[0]}</div>
+                    <div className="text-gray-500 text-sm">
+                      {doctor.specialties && doctor.specialties.length > 0 
+                        ? doctor.specialties[0] 
+                        : "Specialist"}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -327,7 +348,7 @@ export default function App() {
                         <img src={doctor.image} alt={doctor.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-blue-100 text-blue-500">
-                          {doctor.name.charAt(0)}
+                          {doctor.name ? doctor.name.charAt(0) : "?"}
                         </div>
                       )}
                     </div>
@@ -335,15 +356,15 @@ export default function App() {
                     <div className="ml-4 flex-1">
                       <div className="flex justify-between">
                         <div>
-                          <h3 className="font-medium text-lg" data-testid="doctor-name">{doctor.name}</h3>
+                          <h3 className="font-medium text-lg" data-testid="doctor-name">{doctor.name || "Unknown Doctor"}</h3>
                           <div className="text-gray-600" data-testid="doctor-specialty">
-                            {doctor.specialties ? doctor.specialties.join(", ") : ""}
+                            {doctor.specialties && Array.isArray(doctor.specialties) ? doctor.specialties.join(", ") : ""}
                           </div>
-                          <div className="text-gray-500 text-sm mt-1">{doctor.qualification}</div>
-                          <div className="text-gray-600 mt-1" data-testid="doctor-experience">{doctor.experience} yrs exp.</div>
+                          <div className="text-gray-500 text-sm mt-1">{doctor.qualification || ""}</div>
+                          <div className="text-gray-600 mt-1" data-testid="doctor-experience">{doctor.experience || 0} yrs exp.</div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold text-lg" data-testid="doctor-fee">₹ {doctor.fees}</div>
+                          <div className="font-bold text-lg" data-testid="doctor-fee">₹ {doctor.fees || 0}</div>
                         </div>
                       </div>
                       
@@ -351,14 +372,14 @@ export default function App() {
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                         </svg>
-                        {doctor.clinicName}
+                        {doctor.clinicName || ""}
                       </div>
                       <div className="mt-1 flex items-center text-sm text-gray-500">
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                         </svg>
-                        {doctor.location}
+                        {doctor.location || ""}
                       </div>
                     </div>
                   </div>
